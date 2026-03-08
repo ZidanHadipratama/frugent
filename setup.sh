@@ -64,6 +64,10 @@ safe_copy() {
 # --- Install ~/.frugent/ ---
 mkdir -p "$FRUGENT_DIR/templates"
 
+# Save repo path for `frugent update`
+echo "$SCRIPT_DIR" > "$FRUGENT_DIR/.repo_path"
+info "Repo path saved for updates"
+
 safe_copy "$SCRIPT_DIR/frugent.py" "$FRUGENT_DIR/frugent.py" "frugent.py"
 chmod +x "$FRUGENT_DIR/frugent.py"
 

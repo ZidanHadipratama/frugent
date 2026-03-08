@@ -853,6 +853,58 @@ def parse_gemini_json(json_str):
 
 
 # ============================================================
+# UPDATE
+# ============================================================
+
+def update_frugent():
+    """Pull latest changes from repo and re-run setup."""
+    repo_path_file = FRUGENT_DIR / ".repo_path"
+
+    if not repo_path_file.exists():
+        print(f"  {RED}Cannot update — repo path not found.{NC}")
+        print(f"  Re-install with: cd /path/to/frugent && bash setup.sh")
+        sys.exit(1)
+
+    repo_path = repo_path_file.read_text().strip()
+    if not Path(repo_path).is_dir():
+        print(f"  {RED}Repo not found at {repo_path}{NC}")
+        print(f"  Re-install with: cd /path/to/frugent && bash setup.sh")
+        sys.exit(1)
+
+    print(f"  {BOLD}Updating Frugent...{NC}")
+    print(f"  {DIM}Repo: {repo_path}{NC}")
+    print()
+
+    # Git pull
+    result = subprocess.run(
+        ["git", "pull"], cwd=repo_path, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"  {RED}git pull failed:{NC}")
+        print(f"  {result.stderr.strip()}")
+        sys.exit(1)
+
+    pull_output = result.stdout.strip()
+    if "Already up to date" in pull_output:
+        print(f"  {GREEN}Already up to date.{NC}")
+        return
+
+    print(f"  {GREEN}Pulled latest changes:{NC}")
+    print(f"  {DIM}{pull_output}{NC}")
+    print()
+
+    # Re-run setup.sh
+    setup_script = Path(repo_path) / "setup.sh"
+    if not setup_script.exists():
+        print(f"  {RED}setup.sh not found in repo{NC}")
+        sys.exit(1)
+
+    print(f"  Running setup.sh...")
+    print()
+    os.execvp("bash", ["bash", str(setup_script)])
+
+
+# ============================================================
 # CLI ENTRY POINT
 # ============================================================
 
@@ -885,6 +937,9 @@ def main():
             sys.exit(1)
         parse_gemini_json(args[1])
 
+    elif cmd == "update":
+        update_frugent()
+
     elif cmd == "init":
         # Quick scaffold without launching an agent
         _scaffold_docs()
@@ -897,6 +952,7 @@ def main():
         print(f"    frugent               Interactive launcher (new or resume)")
         print(f"    frugent status        Quota status for Claude + Gemini")
         print(f"    frugent status --claude/--gemini/--week")
+        print(f"    frugent update        Pull latest version and re-install")
         print(f"    frugent init          Scaffold docs/ templates only")
         print(f"    frugent record-gemini JSON   Record Gemini usage (fallback)")
         print(f"    frugent help          Show this help")
