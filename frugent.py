@@ -62,7 +62,7 @@ def launch():
 
 def launch_new():
     """Launch flow for new projects (no docs/ folder)."""
-    print(f"  {YELLOW}No docs/ found. Starting new project.{NC}")
+    print(f"  {YELLOW}New project detected.{NC}")
     print()
 
     # Check for PRD/SRS
@@ -90,30 +90,36 @@ def launch_new():
     # Scaffold docs
     _scaffold_docs()
 
-    # Choose agent
-    print()
-    agent = _choose_agent(mode_name)
+    # Write briefing
+    _write_init_briefing(mode_name, has_prd, has_srs)
 
     # Show quota
     print()
     display_status()
     print()
 
-    # Write instructions to briefing.md so agent picks them up on start
+    # Build and show the prompt
     if mode_name == "skip":
-        print(f"  {GREEN}Templates copied to docs/. Done.{NC}")
-        print()
-        _write_init_briefing("skip", has_prd, has_srs)
-        _launch_agent(agent)
-    elif mode_name == "quick":
-        _write_init_briefing("quick", has_prd, has_srs)
-        _launch_agent(agent)
+        print(f"  {GREEN}Templates copied to docs/. Done!{NC}")
+        print(f"  {DIM}Open claude or gemini and start working.{NC}")
     elif mode_name == "deep":
-        if agent == "gemini":
-            _write_init_briefing("deep-analysis", has_prd, has_srs)
-        else:
-            _write_init_briefing("deep", has_prd, has_srs)
-        _launch_agent(agent)
+        # Deep mode: step 1 is Gemini analysis, step 2 is Claude planning
+        _print_prompt_box(
+            "Step 1: Open gemini and paste this:",
+            _build_analysis_prompt()
+        )
+        print()
+        _print_prompt_box(
+            "Step 2: After Gemini finishes, open claude and paste this:",
+            _build_init_prompt("deep", has_prd, has_srs)
+        )
+    else:
+        # Quick mode
+        _print_prompt_box(
+            "Open claude and paste this to start:",
+            _build_init_prompt("quick", has_prd, has_srs)
+        )
+    print()
 
 
 def launch_existing():
@@ -148,19 +154,20 @@ def launch_existing():
     else:
         print(f"  {DIM}Open handoff: none{NC}")
 
-    # Choose agent
-    agent = _choose_agent("resume")
-
     # Update briefing.md with current state
     _update_briefing(last_activity, blockers, handoff)
 
     # Show quota
-    print()
     display_status()
     print()
 
-    # Briefing is already updated above — just launch interactively
-    _launch_agent(agent)
+    # Build and show the resume prompt
+    prompt = _build_resume_prompt(handoff is not None)
+    _print_prompt_box(
+        "Open claude or gemini and paste this to resume:",
+        prompt
+    )
+    print()
 
 
 def _find_file(name):
@@ -194,23 +201,6 @@ def _scaffold_docs():
     print(f"  {GREEN}Scaffolded {count} templates into docs/{NC}")
 
 
-def _choose_agent(context):
-    """Prompt user to choose an agent."""
-    print(f"  {BOLD}Which agent to launch?{NC}")
-
-    if context == "deep":
-        # Deep init should start with Gemini for analysis
-        print(f"    [1] Gemini CLI {DIM}(recommended — free codebase scan){NC}")
-        print(f"    [2] Claude Code {DIM}(plan without deep scan){NC}")
-        choice = _prompt_choice("  Choose", ["1", "2"])
-        return "gemini" if choice == "1" else "claude"
-    else:
-        print(f"    [1] Claude Code {DIM}(planner){NC}")
-        print(f"    [2] Gemini CLI  {DIM}(executor){NC}")
-        choice = _prompt_choice("  Choose", ["1", "2"])
-        return "claude" if choice == "1" else "gemini"
-
-
 def _prompt_choice(prompt, options):
     """Prompt user for a choice."""
     while True:
@@ -225,7 +215,7 @@ def _prompt_choice(prompt, options):
 
 
 def _write_init_briefing(mode, has_prd, has_srs):
-    """Write init instructions to docs/briefing.md for the agent to read on start."""
+    """Write init context to docs/briefing.md for the agent to read."""
     today = datetime.now().strftime("%Y-%m-%d")
     lines = ["# Briefing", ""]
     lines.append("## Current State")
@@ -234,31 +224,14 @@ def _write_init_briefing(mode, has_prd, has_srs):
     lines.append(f"- **Init mode:** {mode}")
     lines.append("")
 
-    if mode == "deep-analysis":
-        lines.append("## Assignment")
-        lines.append("Analyze this codebase for frugent. Read the entire codebase and fill in `docs/codebase-analysis.md` with:")
-        lines.append("- Tech stack")
-        lines.append("- Project structure")
-        lines.append("- All modules/components and their status")
-        lines.append("- Existing interfaces/APIs")
-        lines.append("- Existing tests")
-        lines.append("- Installed dependencies")
-        lines.append("- Git state (branches, uncommitted work)")
-        lines.append("- Summary of what's built vs what's missing")
-        lines.append("")
-        lines.append("Be thorough — this analysis will be used by Claude to create the project plan.")
-    else:
-        lines.append("## Assignment")
-        lines.append(f"Init frugent for this project using **{mode}** mode.")
-        lines.append("Templates are already scaffolded in `docs/`.")
-        lines.append("")
-        if has_prd:
-            lines.append(f"- **PRD:** `{has_prd}`")
-        if has_srs:
-            lines.append(f"- **SRS:** `{has_srs}`")
-        if not has_prd and not has_srs:
-            lines.append("- No PRD or SRS found — ask the developer if they want you to generate them.")
-
+    lines.append("## Context")
+    if has_prd:
+        lines.append(f"- **PRD:** `{has_prd}`")
+    if has_srs:
+        lines.append(f"- **SRS:** `{has_srs}`")
+    if not has_prd and not has_srs:
+        lines.append("- No PRD or SRS found — ask the developer if they want you to generate them.")
+    lines.append("- Templates are already scaffolded in `docs/`.")
     lines.append("")
 
     briefing_file = DOCS_DIR / "briefing.md"
@@ -268,20 +241,65 @@ def _write_init_briefing(mode, has_prd, has_srs):
         pass
 
 
-def _launch_agent(agent):
-    """Launch the chosen agent interactively, replacing the current process."""
-    agent_cmd = "claude" if agent == "claude" else "gemini"
+def _build_init_prompt(mode, has_prd, has_srs):
+    """Build the copy-paste prompt for init."""
+    parts = [f"Init frugent for this project using {mode} mode."]
 
-    if not shutil.which(agent_cmd):
-        print(f"  {RED}{agent_cmd} not found on PATH.{NC}")
-        print(f"  Install {'Claude Code' if agent == 'claude' else 'Gemini CLI'} first.")
-        sys.exit(1)
+    if has_prd:
+        parts.append(f"PRD is at {has_prd}.")
+    if has_srs:
+        parts.append(f"SRS is at {has_srs}.")
+    if not has_prd and not has_srs:
+        parts.append("No PRD or SRS found — ask me if I want you to generate them.")
 
-    print(f"  {GREEN}Launching {agent_cmd}...{NC}")
+    parts.append("Templates are already scaffolded in docs/. Read docs/briefing.md for context.")
+    return " ".join(parts)
+
+
+def _build_analysis_prompt():
+    """Build the copy-paste prompt for Gemini codebase analysis."""
+    return (
+        "Analyze this codebase for frugent. "
+        "Read the entire codebase and fill in docs/codebase-analysis.md with: "
+        "tech stack, project structure, all modules/components and their status, "
+        "existing interfaces/APIs, existing tests, installed dependencies, "
+        "git state (branches, uncommitted work), and a summary of what's built vs what's missing. "
+        "Be thorough — this analysis will be used by Claude to create the project plan."
+    )
+
+
+def _build_resume_prompt(has_handoff):
+    """Build the copy-paste prompt for resuming work."""
+    if has_handoff:
+        return (
+            "Resume work on this frugent project. "
+            "Read docs/briefing.md for current state — there is an open handoff from a previous session. "
+            "Check docs/log.md for the latest handoff entry and continue from there."
+        )
+    return (
+        "Resume work on this frugent project. "
+        "Read docs/briefing.md for current state, then check docs/log.md for recent activity. "
+        "Continue with the next task in docs/plan.md."
+    )
+
+
+def _print_prompt_box(header, prompt):
+    """Print a prompt in a visible box for the user to copy-paste."""
+    print(f"  {BOLD}{header}{NC}")
     print()
-
-    # Launch interactively — agent reads docs/briefing.md on start via skill file
-    os.execvp(agent_cmd, [agent_cmd])
+    print(f"  {CYAN}┌{'─' * 70}┐{NC}")
+    # Wrap prompt into lines that fit in the box
+    words = prompt.split()
+    line = ""
+    for word in words:
+        if len(line) + len(word) + 1 > 68:
+            print(f"  {CYAN}│{NC} {line:<68} {CYAN}│{NC}")
+            line = word
+        else:
+            line = f"{line} {word}".strip()
+    if line:
+        print(f"  {CYAN}│{NC} {line:<68} {CYAN}│{NC}")
+    print(f"  {CYAN}└{'─' * 70}┘{NC}")
 
 
 # ============================================================
@@ -937,7 +955,7 @@ def main():
         print(f"  {BOLD}Frugent{NC} — frugal + agent")
         print()
         print(f"  {BOLD}Usage:{NC}")
-        print(f"    frugent               Interactive launcher (new or resume)")
+        print(f"    frugent               Setup project and get start prompt")
         print(f"    frugent status        Quota status for Claude + Gemini")
         print(f"    frugent status --claude/--gemini/--week")
         print(f"    frugent update        Pull latest version and re-install")
