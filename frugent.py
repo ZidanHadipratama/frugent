@@ -16,6 +16,7 @@ USAGE_FILE = FRUGENT_DIR / "usage.json"
 TEMPLATES_DIR = FRUGENT_DIR / "templates"
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 GEMINI_TELEMETRY_FILE = FRUGENT_DIR / "gemini-telemetry.jsonl"
+CLAUDE_SKILL_SRC = Path.home() / ".claude" / "CLAUDE.md"
 
 DOCS_DIR = Path("docs")
 
@@ -77,9 +78,10 @@ def launch_new():
         print(f"  {DIM}No PRD.md or SRS.md found — agent will ask about this.{NC}")
 
     # Check for existing CLAUDE.md and back it up
-    has_old_claude = _backup_claude_md()
+    has_old_claude = _setup_claude_md()
     if has_old_claude:
         print(f"  {GREEN}Backed up:{NC} CLAUDE.md → docs/old-CLAUDE.md")
+        print(f"  {GREEN}Replaced:{NC} CLAUDE.md with frugent version")
     print()
 
     # Choose init mode
@@ -226,16 +228,26 @@ def _prompt_choice(prompt, options):
         print(f"  Please enter one of: {', '.join(options)}")
 
 
-def _backup_claude_md():
-    """Back up existing CLAUDE.md to docs/old-CLAUDE.md if it exists."""
+def _setup_claude_md():
+    """Back up existing CLAUDE.md and replace with frugent's version."""
     claude_md = Path("CLAUDE.md")
-    if not claude_md.exists():
-        return False
+    has_old = False
 
-    DOCS_DIR.mkdir(exist_ok=True)
-    backup = DOCS_DIR / "old-CLAUDE.md"
-    shutil.copy2(claude_md, backup)
-    return True
+    # Back up existing CLAUDE.md if it exists
+    if claude_md.exists():
+        DOCS_DIR.mkdir(exist_ok=True)
+        backup = DOCS_DIR / "old-CLAUDE.md"
+        shutil.copy2(claude_md, backup)
+        has_old = True
+
+    # Overwrite with frugent's CLAUDE.md
+    if CLAUDE_SKILL_SRC.exists():
+        shutil.copy2(CLAUDE_SKILL_SRC, claude_md)
+    else:
+        print(f"  {RED}Frugent CLAUDE.md not found at {CLAUDE_SKILL_SRC}{NC}")
+        print(f"  Run setup.sh first.")
+
+    return has_old
 
 
 def _write_init_briefing(mode, has_prd, has_srs, has_old_claude=False):
