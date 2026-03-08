@@ -2,7 +2,15 @@
 
 **Frugal + Agent** — Multi-agent coordination for solo developers.
 
-Route tasks to the right AI agent based on complexity. Use free tiers (Gemini CLI, Codex) for standard work, paid (Claude Code) for complex work. Coordinate through shared markdown documents.
+Route tasks to the right AI agent based on complexity and dynamic role mapping. Use free tiers (Gemini CLI, Codex) for standard work and paid tiers (Claude Code) for complex architecture. Coordinate through shared markdown documents with **Elite Prompting** guardrails.
+
+## v2.2 Upgrade: Elite Prompting
+Frugent now uses advanced prompting techniques inspired by GSD and Google's best practices:
+- **XML Task Contracts:** Removing ambiguity with structured `<task>`, `<action>`, and `<verify>` blocks.
+- **Dynamic Role Mapping:** Assign any tool (Claude, Gemini, etc.) to any role (Planner, Executor, Integrator) per project.
+- **Behavioral Guardrails:** Strict anti-paralysis, no-stub, and 3-attempt limit rules built into every session.
+- **Conversational Init:** "Dream Extraction" process to align agents with your vision before planning.
+- **Google-Optimized:** Native Gemini support with mandatory Chain-of-Thought (`<thinking>`) and context grounding.
 
 ## Install
 
@@ -16,74 +24,33 @@ This installs slash commands, skill files, and templates into `~/.claude/`, `~/.
 
 Requires Python 3.6+. No pip installs needed.
 
-## Update
-
-```bash
-cd /path/to/frugent
-git pull
-bash setup.sh
-```
-
 ## Usage
 
-Open any project in Claude Code, Gemini CLI, or Codex and use the slash commands:
+Open any project in Claude Code, Gemini CLI (with native auto-complete), or Codex and use the slash commands:
 
 ### 1. Initialize a project
-
 ```
 /frugent-init
 ```
-
-Scans your project, scaffolds `docs/` with coordination templates, and fills in the initial codebase analysis. Backs up your existing CLAUDE.md if present.
+Performs a conversational "Dream Extraction" to understand your vision, scans your project, and scaffolds `docs/` with coordination templates.
 
 ### 2. Create the plan
-
 ```
 /frugent-plan
 ```
-
-Reads your PRD/SRS and codebase analysis, then produces:
-- `docs/plan.md` — phases, tasks, complexity tags, agent assignments
-- `docs/contracts.md` — interface definitions between components
-- `docs/test-cases.md` — what to test per feature
-- `docs/briefing.md` — session bootstrap for the next agent
+Produces an execution plan with **context-capped phases** (3-5 tasks) and **XML task contracts**. Sets up the **Role Mapping Table** for the project.
 
 ### 3. Execute tasks
-
 ```
 /frugent-execute
 ```
-
-Picks up the next task from the plan and executes it. Handles:
-- Task routing: `standard` tasks → Gemini/Codex (free), `complex` → Claude (paid)
-- Progress logging to `docs/log.md`
-- Automatic handoff when quota is low
-- Resume from previous handoffs
+Picks up the next task and executes it with strict behavioral guardrails. Includes a mandatory **Self-Check** phase to verify goals are met.
 
 ### 4. Check status
-
 ```
 /frugent-status
 ```
-
-Shows quota usage (Claude hours + Gemini tokens), phase progress, blockers, and handoffs.
-
-## How It Works
-
-```
-/frugent-init          → Scan project, scaffold docs/
-/frugent-plan          → PRD/SRS → plan.md, contracts.md, test-cases.md
-/frugent-execute       → Pick task → implement → log progress → repeat
-/frugent-status        → Quota + progress check
-```
-
-**Cost routing:** Every task is tagged `standard` or `complex`.
-- `standard` → Gemini CLI or Codex (free) — CRUD, UI, boilerplate, tests
-- `complex` → Claude Code (paid) — architecture, AI logic, integration
-
-**Quota tracking:** Agents check `~/.frugent/tracker.py` before and after work. If quota is low, they write a handoff document so the next agent (or session) can pick up.
-
-**Handoff protocol:** When switching agents or running low on quota, the current agent writes a `[handoff]` entry in `docs/log.md` with: what's done, what's in progress, what's remaining, and how to resume.
+Shows grounded status based on documentation, including quota usage, phase progress, and open blockers.
 
 ## Documents
 
@@ -91,39 +58,34 @@ All coordination happens through markdown files in `docs/`:
 
 | File | Purpose | Written by |
 |------|---------|-----------|
-| `plan.md` | Phases, tasks, assignments | Planner |
-| `contracts.md` | Interface definitions | Planner |
-| `briefing.md` | Session bootstrap | Any agent |
-| `log.md` | Progress, blockers, handoffs | Any agent |
-| `test-cases.md` | What to test | Planner |
+| `plan.md` | Phases, XML tasks, Role Mapping | Planner |
+| `contracts.md` | Interface and logic definitions | Planner |
+| `briefing.md` | Session bootstrap & active assignment | Any agent |
+| `log.md` | Structured progress, handoffs, lessons | Any agent |
+| `test-cases.md` | Goal-driven verification specs | Planner |
 | `qa-report.md` | Test results | QA |
-| `codebase-analysis.md` | Project scan | Init agent |
+| `codebase-analysis.md` | Project scan & tech stack | Init agent |
 
 ## Supported Agents
 
-| Agent | Role | Cost |
+| Agent | Role (Configurable) | Format |
 |-------|------|------|
-| Claude Code | Planner + complex executor | Paid |
-| Gemini CLI | Standard executor | Free |
-| Codex | Standard executor | Free |
+| **Claude Code** | Planner / Integrator / Complex Executor | `.md` |
+| **Gemini CLI** | Standard Executor (Native Auto-complete) | `.toml` |
+| **Codex** | QA / Standard Executor | `.md` |
 
 ## What Gets Installed
 
 ```
-~/.claude/commands/frugent-*.md    ← slash commands
-~/.gemini/commands/frugent-*.md    ← slash commands
-~/.codex/commands/frugent-*.md     ← slash commands
+~/.claude/commands/frugent-*.md    ← slash commands (Markdown)
+~/.gemini/commands/frugent-*.toml  ← slash commands (Native TOML)
+~/.codex/commands/frugent-*.md     ← slash commands (Markdown)
 ~/.claude/CLAUDE.md                ← session rules
 ~/.gemini/GEMINI.md                ← session rules
 ~/.codex/CODEX.md                  ← session rules
 ~/.frugent/tracker.py              ← quota tracker
 ~/.frugent/templates/              ← document templates
 ```
-
-## Requirements
-
-- Python 3.6+
-- At least one of: Claude Code, Gemini CLI, Codex
 
 ## License
 
