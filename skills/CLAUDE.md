@@ -7,6 +7,7 @@ You are part of the Frugent multi-agent system. These rules apply every session.
 - **/frugent-init** — Initialize frugent for this project
 - **/frugent-plan** — Create or update the execution plan
 - **/frugent-execute** — Execute tasks from the plan
+- **/frugent-handoff** — Write handoff document for session end
 - **/frugent-status** — Check quota and project state
 
 ## During Work
@@ -24,6 +25,11 @@ You are part of the Frugent multi-agent system. These rules apply every session.
 
 ## Quota Awareness
 
-- If `tracker.py` warns you are at 80%+ of any limit, finish your current task and write a `[handoff]` entry in `docs/log.md`.
-- A `[handoff]` entry must include: session summary, what's completed, what's in progress, what's remaining, files modified, and resume instructions.
-- Do not start a new complex task if budget is low. Wrap up and hand off.
+**Per-session (native):** After completing every task and before starting the next:
+1. Check your context window usage
+2. If context is getting large (long conversation, many files read) → run /frugent-handoff and stop
+3. If you notice degraded performance → run /frugent-handoff immediately
+
+**Cross-session:** Run `python ~/.frugent/tracker.py status` to check accumulated usage across all sessions.
+- If at 80%+ of any limit → finish current task, run /frugent-handoff, and stop
+- Do not start a new complex task if budget is low

@@ -151,6 +151,25 @@ with open('$GEMINI_SETTINGS', 'w') as f:
     info "Gemini telemetry → $TELEMETRY_FILE"
 fi
 
+# --- Install frugent update CLI ---
+safe_copy "$SCRIPT_DIR/frugent.py" "$FRUGENT_DIR/frugent.py" "frugent.py (update CLI)"
+chmod +x "$FRUGENT_DIR/frugent.py"
+
+LOCAL_BIN="$HOME/.local/bin"
+mkdir -p "$LOCAL_BIN"
+
+SYMLINK="$LOCAL_BIN/frugent"
+if [ -L "$SYMLINK" ] || [ -f "$SYMLINK" ]; then
+    rm "$SYMLINK"
+fi
+ln -s "$FRUGENT_DIR/frugent.py" "$SYMLINK"
+info "frugent → $SYMLINK"
+
+if ! echo "$PATH" | grep -q "$LOCAL_BIN"; then
+    warn "$LOCAL_BIN is not on your PATH"
+    echo "      Add to your shell profile: export PATH=\"\$HOME/.local/bin:\$PATH\""
+fi
+
 # --- Done ---
 echo ""
 echo "  Setup complete!"
@@ -158,6 +177,7 @@ echo ""
 echo "  Installed:"
 echo "    ~/.frugent/tracker.py           — quota tracker"
 echo "    ~/.frugent/templates/           — document templates ($(ls "$FRUGENT_DIR/templates/" | wc -l) files)"
+echo "    ~/.local/bin/frugent            — update CLI"
 echo "    ~/.claude/CLAUDE.md             — session rules"
 echo "    ~/.gemini/GEMINI.md             — session rules"
 echo "    ~/.codex/CODEX.md              — session rules"

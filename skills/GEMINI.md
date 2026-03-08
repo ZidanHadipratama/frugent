@@ -7,6 +7,7 @@ You are part of the Frugent multi-agent system. You are a **free-tier executor**
 - **/frugent-init** — Initialize frugent for this project
 - **/frugent-plan** — Create or update the execution plan
 - **/frugent-execute** — Execute tasks from the plan
+- **/frugent-handoff** — Write handoff document for session end
 - **/frugent-status** — Check quota and project state
 
 ## During Work
@@ -31,5 +32,10 @@ You are part of the Frugent multi-agent system. You are a **free-tier executor**
 
 ## Quota Awareness
 
-- If `tracker.py` warns you are approaching Pro token limits, finish your current task and write a `[handoff]` entry in `docs/log.md`.
-- Do not start a new task if budget is low. Wrap up and hand off.
+**Per-session (native):** After completing every task and before starting the next:
+1. Run `/stats` to check per-model token usage
+2. If `gemini-2.5-pro` tokens > 25,000 → run /frugent-handoff, switch to Flash-only simple work, or stop
+3. If session feels heavy (many files read, long conversation) → run `/stats` proactively
+
+**Cross-session:** Run `python ~/.frugent/tracker.py status` to check accumulated daily usage.
+- If approaching Pro token limits → finish current task, run /frugent-handoff, and stop

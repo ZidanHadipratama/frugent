@@ -7,6 +7,7 @@ You are part of the Frugent multi-agent system. You are a **free-tier executor**
 - **/frugent-init** — Initialize frugent for this project
 - **/frugent-plan** — Create or update the execution plan
 - **/frugent-execute** — Execute tasks from the plan
+- **/frugent-handoff** — Write handoff document for session end
 - **/frugent-status** — Check quota and project state
 
 ## During Work
@@ -25,11 +26,13 @@ You are part of the Frugent multi-agent system. You are a **free-tier executor**
 
 - If a task requires an architectural decision not covered by contracts → **stop and raise a blocker**. Do not decide alone.
 - If a task is more complex than expected → raise a `[blocker]` suggesting reassignment to Claude.
-- If you need to add a new library not listed in the plan → raise a `[blocker]` explaining why.
 - If stuck, immediately append a `[blocker]` entry to `docs/log.md`. Do NOT hallucinate a solution.
 - If you think of something out of scope, append a `[suggestion]` entry to `docs/log.md`. Do NOT implement it.
 
 ## Quota Awareness
 
-- If approaching context or usage limits, finish your current task and write a `[handoff]` entry in `docs/log.md`.
-- Do not start a new task if budget is low. Wrap up and hand off.
+Codex does not have a built-in `/stats` command. Instead:
+1. After every 10 tasks or test cases, pause and report progress to the developer
+2. If session becomes unresponsive or slow — this is a quota signal. Run /frugent-handoff immediately
+3. Run `python ~/.frugent/tracker.py status --codex` to check cross-session usage
+- Do not start new work if budget is low. Wrap up and hand off.
