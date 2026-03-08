@@ -48,7 +48,11 @@ def launch():
     print(f"  {DIM}Multi-agent coordination for solo developers{NC}")
     print()
 
-    is_existing = DOCS_DIR.exists() and any(DOCS_DIR.iterdir())
+    # Check for frugent-specific files, not just any docs/ folder
+    frugent_markers = ["log.md", "plan.md", "briefing.md", "contracts.md"]
+    is_existing = DOCS_DIR.exists() and any(
+        (DOCS_DIR / marker).exists() for marker in frugent_markers
+    )
 
     if is_existing:
         launch_existing()
@@ -282,7 +286,7 @@ def _launch_agent(agent, prompt=None):
     if agent == "claude":
         cmd = [agent_cmd]
         if prompt:
-            cmd.extend(["--prompt", prompt])
+            cmd.extend(["-p", prompt])
     else:
         cmd = [agent_cmd]
         if prompt:
