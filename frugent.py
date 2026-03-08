@@ -61,7 +61,7 @@ def launch():
 
 
 def launch_new():
-    """Launch flow for new projects (no docs/ folder)."""
+    """Launch flow for new projects (no frugent docs found)."""
     print(f"  {YELLOW}New project detected.{NC}")
     print()
 
@@ -75,6 +75,11 @@ def launch_new():
         print(f"  {GREEN}Found:{NC} {has_srs}")
     if not has_prd and not has_srs:
         print(f"  {DIM}No PRD.md or SRS.md found — agent will ask about this.{NC}")
+
+    # Check for existing CLAUDE.md and back it up
+    has_old_claude = _backup_claude_md()
+    if has_old_claude:
+        print(f"  {GREEN}Backed up:{NC} CLAUDE.md → docs/old-CLAUDE.md")
     print()
 
     # Choose init mode
@@ -91,33 +96,39 @@ def launch_new():
     _scaffold_docs()
 
     # Write briefing
-    _write_init_briefing(mode_name, has_prd, has_srs)
+    _write_init_briefing(mode_name, has_prd, has_srs, has_old_claude)
 
     # Show quota
     print()
     display_status()
     print()
 
-    # Build and show the prompt
+    # Build prompts and write to docs/README.md
     if mode_name == "skip":
+        _write_readme(None, None)
         print(f"  {GREEN}Templates copied to docs/. Done!{NC}")
         print(f"  {DIM}Open claude or gemini and start working.{NC}")
     elif mode_name == "deep":
-        # Deep mode: step 1 is Gemini analysis, step 2 is Claude planning
+        analysis_prompt = _build_analysis_prompt()
+        init_prompt = _build_init_prompt("deep", has_prd, has_srs, has_old_claude)
+        _write_readme(init_prompt, analysis_prompt)
+
         _print_prompt_box(
             "Step 1: Open gemini and paste this:",
-            _build_analysis_prompt()
+            analysis_prompt
         )
         print()
         _print_prompt_box(
             "Step 2: After Gemini finishes, open claude and paste this:",
-            _build_init_prompt("deep", has_prd, has_srs)
+            init_prompt
         )
     else:
-        # Quick mode
+        init_prompt = _build_init_prompt("quick", has_prd, has_srs, has_old_claude)
+        _write_readme(init_prompt, None)
+
         _print_prompt_box(
             "Open claude and paste this to start:",
-            _build_init_prompt("quick", has_prd, has_srs)
+            init_prompt
         )
     print()
 
@@ -163,6 +174,7 @@ def launch_existing():
 
     # Build and show the resume prompt
     prompt = _build_resume_prompt(handoff is not None)
+    _write_readme(prompt, None)
     _print_prompt_box(
         "Open claude or gemini and paste this to resume:",
         prompt
@@ -214,7 +226,19 @@ def _prompt_choice(prompt, options):
         print(f"  Please enter one of: {', '.join(options)}")
 
 
-def _write_init_briefing(mode, has_prd, has_srs):
+def _backup_claude_md():
+    """Back up existing CLAUDE.md to docs/old-CLAUDE.md if it exists."""
+    claude_md = Path("CLAUDE.md")
+    if not claude_md.exists():
+        return False
+
+    DOCS_DIR.mkdir(exist_ok=True)
+    backup = DOCS_DIR / "old-CLAUDE.md"
+    shutil.copy2(claude_md, backup)
+    return True
+
+
+def _write_init_briefing(mode, has_prd, has_srs, has_old_claude=False):
     """Write init context to docs/briefing.md for the agent to read."""
     today = datetime.now().strftime("%Y-%m-%d")
     lines = ["# Briefing", ""]
@@ -231,6 +255,8 @@ def _write_init_briefing(mode, has_prd, has_srs):
         lines.append(f"- **SRS:** `{has_srs}`")
     if not has_prd and not has_srs:
         lines.append("- No PRD or SRS found — ask the developer if they want you to generate them.")
+    if has_old_claude:
+        lines.append("- **Previous CLAUDE.md:** `docs/old-CLAUDE.md` — contains project context from before frugent was set up. Read this to understand the project.")
     lines.append("- Templates are already scaffolded in `docs/`.")
     lines.append("")
 
@@ -241,7 +267,7 @@ def _write_init_briefing(mode, has_prd, has_srs):
         pass
 
 
-def _build_init_prompt(mode, has_prd, has_srs):
+def _build_init_prompt(mode, has_prd, has_srs, has_old_claude=False):
     """Build the copy-paste prompt for init."""
     parts = [f"Init frugent for this project using {mode} mode."]
 
@@ -252,7 +278,10 @@ def _build_init_prompt(mode, has_prd, has_srs):
     if not has_prd and not has_srs:
         parts.append("No PRD or SRS found — ask me if I want you to generate them.")
 
-    parts.append("Templates are already scaffolded in docs/. Read docs/briefing.md for context.")
+    if has_old_claude:
+        parts.append("Read docs/old-CLAUDE.md first — it has the existing project context (architecture, tech stack, conventions). Use it to fill in the frugent docs.")
+
+    parts.append("Templates are already scaffolded in docs/. Read docs/briefing.md for full context.")
     return " ".join(parts)
 
 
@@ -281,6 +310,44 @@ def _build_resume_prompt(has_handoff):
         "Read docs/briefing.md for current state, then check docs/log.md for recent activity. "
         "Continue with the next task in docs/plan.md."
     )
+
+
+def _write_readme(init_prompt, analysis_prompt=None):
+    """Write the getting-started prompt(s) to docs/README.md."""
+    lines = ["# Frugent — Getting Started", ""]
+    lines.append("Paste the prompt(s) below into your agent to get started.")
+    lines.append("")
+
+    if analysis_prompt:
+        lines.append("## Step 1: Codebase Analysis (Gemini — free)")
+        lines.append("")
+        lines.append("Open `gemini` and paste this:")
+        lines.append("")
+        lines.append("```")
+        lines.append(analysis_prompt)
+        lines.append("```")
+        lines.append("")
+        lines.append("## Step 2: Planning (Claude)")
+        lines.append("")
+        lines.append("After Gemini finishes, open `claude` and paste this:")
+        lines.append("")
+    elif init_prompt:
+        lines.append("## Start Prompt")
+        lines.append("")
+        lines.append("Open `claude` or `gemini` and paste this:")
+        lines.append("")
+
+    if init_prompt:
+        lines.append("```")
+        lines.append(init_prompt)
+        lines.append("```")
+        lines.append("")
+
+    readme_file = DOCS_DIR / "README.md"
+    try:
+        readme_file.write_text("\n".join(lines))
+    except IOError:
+        pass
 
 
 def _print_prompt_box(header, prompt):
