@@ -1,6 +1,6 @@
 #!/bin/bash
 # Frugent v1 — Setup Script
-# Installs skill files, tracker, and templates globally.
+# Installs CLI, skill files, tracker, and templates globally.
 
 set -e
 
@@ -64,8 +64,14 @@ safe_copy() {
 # --- Install ~/.frugent/ ---
 mkdir -p "$FRUGENT_DIR/templates"
 
-safe_copy "$SCRIPT_DIR/tracker/tracker.py" "$FRUGENT_DIR/tracker.py" "tracker.py"
-chmod +x "$FRUGENT_DIR/tracker.py"
+safe_copy "$SCRIPT_DIR/frugent.py" "$FRUGENT_DIR/frugent.py" "frugent.py"
+chmod +x "$FRUGENT_DIR/frugent.py"
+
+# Keep tracker.py as alias for agents that call it directly
+if [ -f "$SCRIPT_DIR/tracker/tracker.py" ]; then
+    safe_copy "$SCRIPT_DIR/tracker/tracker.py" "$FRUGENT_DIR/tracker.py" "tracker.py (agent compat)"
+    chmod +x "$FRUGENT_DIR/tracker.py"
+fi
 
 for template in "$SCRIPT_DIR"/templates/*; do
     if [ -f "$template" ]; then
@@ -132,21 +138,40 @@ with open('$GEMINI_SETTINGS', 'w') as f:
     info "Gemini settings created with telemetry → $TELEMETRY_FILE"
 fi
 
+# --- Install frugent to PATH ---
+LOCAL_BIN="$HOME/.local/bin"
+mkdir -p "$LOCAL_BIN"
+
+SYMLINK="$LOCAL_BIN/frugent"
+if [ -L "$SYMLINK" ] || [ -f "$SYMLINK" ]; then
+    rm "$SYMLINK"
+fi
+ln -s "$FRUGENT_DIR/frugent.py" "$SYMLINK"
+info "frugent symlinked to $SYMLINK"
+
+# Check if ~/.local/bin is on PATH
+if ! echo "$PATH" | grep -q "$LOCAL_BIN"; then
+    warn "$LOCAL_BIN is not on your PATH"
+    echo "      Add this to your shell profile (~/.bashrc or ~/.zshrc):"
+    echo "      export PATH=\"\$HOME/.local/bin:\$PATH\""
+fi
+
 # --- Done ---
 echo ""
 echo "  Setup complete!"
 echo ""
 echo "  Installed:"
-echo "    ~/.frugent/tracker.py        — usage tracker"
+echo "    ~/.frugent/frugent.py        — CLI launcher + tracker"
+echo "    ~/.frugent/tracker.py        — tracker (agent compat)"
 echo "    ~/.frugent/templates/        — document templates ($(ls "$FRUGENT_DIR/templates/" | wc -l) files)"
 echo "    ~/.claude/CLAUDE.md          — planner skill"
 echo "    ~/.gemini/GEMINI.md          — executor skill"
+echo "    ~/.local/bin/frugent         — symlink (on PATH)"
 echo ""
 echo "  Quick start:"
-echo "    1. Open Claude Code in your project"
-echo '    2. Say: "Init frugent for this project"'
-echo "    3. Claude will scaffold docs/ from templates"
+echo "    cd your-project"
+echo "    frugent"
 echo ""
-echo "  Check quota anytime:"
-echo "    python ~/.frugent/tracker.py status"
+echo "  Check quota:"
+echo "    frugent status"
 echo ""

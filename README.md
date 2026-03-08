@@ -21,10 +21,12 @@ bash /tmp/frugent/setup.sh
 ```
 
 This installs:
+- `~/.local/bin/frugent` — CLI launcher (symlink)
 - `~/.claude/CLAUDE.md` — planner skill for Claude Code
 - `~/.gemini/GEMINI.md` — executor skill for Gemini CLI
-- `~/.frugent/tracker.py` — usage tracker (agent-invoked)
+- `~/.frugent/frugent.py` — launcher + usage tracker
 - `~/.frugent/templates/` — document templates
+- Configures Gemini CLI telemetry for automatic token tracking
 
 Requires Python 3.6+. No pip installs needed.
 
@@ -32,18 +34,29 @@ Requires Python 3.6+. No pip installs needed.
 
 ### New project
 
-1. Open Claude Code in your project directory
-2. Say: **"Init frugent for this project"**
-3. Claude will ask which mode you want:
-   - **Quick** — fast scan of your project, scaffolds docs, ready to work
-   - **Deep** — Gemini scans the full codebase first (free), Claude plans from the analysis
-   - **Skip** — just copy the templates, you'll fill them in yourself
-4. Claude produces `plan.md`, `contracts.md`, `briefing.md`, and `test-cases.md` in `docs/`
-5. Open Gemini CLI and start working on tasks tagged `standard` in the plan
+```bash
+cd your-project
+frugent
+```
 
-### Existing project
+Frugent detects no `docs/` folder and walks you through setup:
+1. Choose init mode: **Quick** / **Deep** / **Skip**
+2. Choose agent: **Claude Code** (planner) or **Gemini CLI** (executor)
+3. Frugent scaffolds `docs/`, shows your quota, and launches the agent with the right context
 
-Same as above. Use **deep init** for large codebases — Gemini does the heavy analysis for free, then Claude reads the result and plans from it.
+### Existing project (resume)
+
+```bash
+cd your-project
+frugent
+```
+
+Frugent detects `docs/` exists and shows you:
+- Last activity from `log.md`
+- Unresolved blockers
+- Open handoffs from previous sessions
+
+Then updates `briefing.md` with current state, shows quota, and launches your chosen agent with a resume prompt.
 
 ## How It Works
 
@@ -105,11 +118,12 @@ When limits approach, agents write a `[handoff]` entry in `log.md` so the next s
 ```
 frugent/
 ├── setup.sh                ← installer
+├── frugent.py              ← CLI launcher + tracker
 ├── skills/
 │   ├── CLAUDE.md           ← planner skill
 │   └── GEMINI.md           ← executor skill
 ├── tracker/
-│   └── tracker.py          ← usage tracker
+│   └── tracker.py          ← tracker (agent compat)
 ├── templates/              ← document templates (7 files)
 ├── PRD.md                  ← product requirements
 └── SRS.md                  ← software requirements
