@@ -99,21 +99,21 @@ def launch_new():
     display_status()
     print()
 
-    # Build initial prompt for the agent
+    # Write instructions to briefing.md so agent picks them up on start
     if mode_name == "skip":
         print(f"  {GREEN}Templates copied to docs/. Done.{NC}")
         print()
+        _write_init_briefing("skip", has_prd, has_srs)
         _launch_agent(agent)
     elif mode_name == "quick":
-        prompt = _build_init_prompt("quick", has_prd, has_srs)
-        _launch_agent(agent, prompt)
+        _write_init_briefing("quick", has_prd, has_srs)
+        _launch_agent(agent)
     elif mode_name == "deep":
         if agent == "gemini":
-            prompt = _build_analysis_prompt()
-            _launch_agent(agent, prompt)
+            _write_init_briefing("deep-analysis", has_prd, has_srs)
         else:
-            prompt = _build_init_prompt("deep", has_prd, has_srs)
-            _launch_agent(agent, prompt)
+            _write_init_briefing("deep", has_prd, has_srs)
+        _launch_agent(agent)
 
 
 def launch_existing():
@@ -159,9 +159,8 @@ def launch_existing():
     display_status()
     print()
 
-    # Build resume prompt
-    prompt = _build_resume_prompt(handoff is not None)
-    _launch_agent(agent, prompt)
+    # Briefing is already updated above — just launch interactively
+    _launch_agent(agent)
 
 
 def _find_file(name):
@@ -225,53 +224,52 @@ def _prompt_choice(prompt, options):
         print(f"  Please enter one of: {', '.join(options)}")
 
 
-def _build_init_prompt(mode, has_prd, has_srs):
-    """Build the initial prompt for the agent."""
-    parts = []
-    parts.append(f"Init frugent for this project using {mode} mode.")
+def _write_init_briefing(mode, has_prd, has_srs):
+    """Write init instructions to docs/briefing.md for the agent to read on start."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    lines = ["# Briefing", ""]
+    lines.append("## Current State")
+    lines.append(f"- **Date:** {today}")
+    lines.append(f"- **Status:** New project — init required")
+    lines.append(f"- **Init mode:** {mode}")
+    lines.append("")
 
-    if has_prd:
-        parts.append(f"PRD is at {has_prd}.")
-    if has_srs:
-        parts.append(f"SRS is at {has_srs}.")
-    if not has_prd and not has_srs:
-        parts.append("No PRD or SRS found — ask me if I want you to generate them.")
+    if mode == "deep-analysis":
+        lines.append("## Assignment")
+        lines.append("Analyze this codebase for frugent. Read the entire codebase and fill in `docs/codebase-analysis.md` with:")
+        lines.append("- Tech stack")
+        lines.append("- Project structure")
+        lines.append("- All modules/components and their status")
+        lines.append("- Existing interfaces/APIs")
+        lines.append("- Existing tests")
+        lines.append("- Installed dependencies")
+        lines.append("- Git state (branches, uncommitted work)")
+        lines.append("- Summary of what's built vs what's missing")
+        lines.append("")
+        lines.append("Be thorough — this analysis will be used by Claude to create the project plan.")
+    else:
+        lines.append("## Assignment")
+        lines.append(f"Init frugent for this project using **{mode}** mode.")
+        lines.append("Templates are already scaffolded in `docs/`.")
+        lines.append("")
+        if has_prd:
+            lines.append(f"- **PRD:** `{has_prd}`")
+        if has_srs:
+            lines.append(f"- **SRS:** `{has_srs}`")
+        if not has_prd and not has_srs:
+            lines.append("- No PRD or SRS found — ask the developer if they want you to generate them.")
 
-    parts.append("Templates are already scaffolded in docs/.")
+    lines.append("")
 
-    return " ".join(parts)
-
-
-def _build_analysis_prompt():
-    """Build prompt for Gemini to analyze the codebase."""
-    return (
-        "Analyze this codebase for frugent. "
-        "Read the entire codebase and fill in docs/codebase-analysis.md with: "
-        "tech stack, project structure, all modules/components and their status, "
-        "existing interfaces/APIs, existing tests, installed dependencies, "
-        "git state (branches, uncommitted work), and a summary of what's built vs what's missing. "
-        "Be thorough — this analysis will be used by Claude to create the project plan."
-    )
-
-
-def _build_resume_prompt(has_handoff):
-    """Build prompt for resuming work."""
-    if has_handoff:
-        return (
-            "Resume work on this frugent project. "
-            "Read docs/briefing.md for current state — there is an open handoff from a previous session. "
-            "Check docs/log.md for the latest handoff entry and continue from there."
-        )
-    return (
-        "Resume work on this frugent project. "
-        "Read docs/briefing.md for current state, then check docs/log.md for recent activity. "
-        "Continue with the next task in docs/plan.md."
-    )
+    briefing_file = DOCS_DIR / "briefing.md"
+    try:
+        briefing_file.write_text("\n".join(lines))
+    except IOError:
+        pass
 
 
-def _launch_agent(agent, prompt=None):
-    """Launch the chosen agent, replacing the current process."""
-    # Check if agent CLI exists
+def _launch_agent(agent):
+    """Launch the chosen agent interactively, replacing the current process."""
     agent_cmd = "claude" if agent == "claude" else "gemini"
 
     if not shutil.which(agent_cmd):
@@ -282,18 +280,8 @@ def _launch_agent(agent, prompt=None):
     print(f"  {GREEN}Launching {agent_cmd}...{NC}")
     print()
 
-    # Build command
-    if agent == "claude":
-        cmd = [agent_cmd]
-        if prompt:
-            cmd.extend(["-p", prompt])
-    else:
-        cmd = [agent_cmd]
-        if prompt:
-            cmd.append(prompt)
-
-    # Replace current process with the agent
-    os.execvp(agent_cmd, cmd)
+    # Launch interactively — agent reads docs/briefing.md on start via skill file
+    os.execvp(agent_cmd, [agent_cmd])
 
 
 # ============================================================
