@@ -1,0 +1,4 @@
+Add an option to run frugent in cli
+it will give option to user to choose the planner agent and the execution agent.
+When running it, immediately open 2 terminal, one planner and one execution. 
+Maybe planner could only be one and execution can have 2 or more?
