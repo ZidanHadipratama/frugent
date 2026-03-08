@@ -1,3 +1,5 @@
+description = "Check quota and project state"
+prompt = """
 # Frugent Status
 
 Show the current project state and quota.
@@ -6,7 +8,7 @@ Show the current project state and quota.
 Run `python ~/.frugent/tracker.py status` and report the result clearly.
 
 ## Step 2: Context Grounding
-**MANDATORY:** Always start your analysis with: "Based on the information in the provided documentation..." to anchor your reasoning to the project state.
+**MANDATORY:** Always start your analysis with the phrase: "Based on the information in the provided documentation..." to anchor your reasoning to the project state.
 
 ## Step 3: Project State Summary
 Read these files and summarize:
@@ -19,6 +21,7 @@ Report:
 - Last activity (from log.md)
 - Any unresolved `[blocker]` entries
 - Any open `[handoff]` entries
-- Quota status for both models (e.g., Claude and Gemini)
+- Quota status for both Claude and Gemini
 
-If `docs/` doesn't exist, tell the user: "No Frugent project found. Run /frugent-init to set up."
+If `docs/` doesn't exist, tell the user: "No frugent project found. Run /frugent-init to set up."
+"""

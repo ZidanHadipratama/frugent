@@ -260,9 +260,7 @@ def record_gemini_usage(data, pro_tokens, flash_tokens):
 def scan_gemini_telemetry():
     """Read Gemini telemetry log and extract today's token usage.
 
-    The telemetry file is written by Gemini CLI's OpenTelemetry exporter.
-    Format may be JSONL with OpenTelemetry log/metric records, or a custom
-    format. We try multiple parsing strategies and degrade gracefully.
+    Handles both JSONL (one object per line) and pretty-printed multi-line JSON.
     """
     if not GEMINI_TELEMETRY_FILE.exists():
         return None, "no-file"
@@ -274,22 +272,34 @@ def scan_gemini_telemetry():
     parsed_any = False
 
     try:
-        with open(GEMINI_TELEMETRY_FILE, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
+        content = GEMINI_TELEMETRY_FILE.read_text()
+        if not content.strip():
+            return None, "no-data"
 
+        import json
+        decoder = json.JSONDecoder()
+        pos = 0
+        content_len = len(content)
+
+        while pos < content_len:
+            # Skip whitespace
+            while pos < content_len and content[pos].isspace():
+                pos += 1
+            if pos >= content_len:
+                break
+
+            try:
+                entry, pos = decoder.raw_decode(content, pos)
                 tokens = extract_gemini_tokens(entry, today)
                 if tokens:
                     parsed_any = True
                     pro_tokens += tokens.get("pro", 0)
                     flash_tokens += tokens.get("flash", 0)
                     prompts += tokens.get("prompts", 0)
+            except json.JSONDecodeError:
+                # If decode fails, skip current character and try again
+                pos += 1
+
     except (IOError, PermissionError) as e:
         return None, f"Unable to read telemetry: {e}"
 
@@ -311,6 +321,9 @@ def extract_gemini_tokens(entry, today):
     2. OpenTelemetry metric record
     3. Gemini CLI custom format
     """
+    if not isinstance(entry, dict):
+        return None
+
     # Check if this entry is from today
     entry_date = None
     for key in ("timestamp", "timeUnixNano", "time", "ts", "observedTimeUnixNano"):

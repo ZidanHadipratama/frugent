@@ -1,6 +1,6 @@
-# PRD — Frugent v1
+# PRD — Frugent v2.1
 **Product Requirements Document**
-Version: 2.0
+Version: 2.1
 Status: Draft
 Author: Mochamad Zidan Hadipratama
 
@@ -8,7 +8,7 @@ Author: Mochamad Zidan Hadipratama
 
 ## 1. Overview
 
-**Frugent** is a lightweight, multi-agent development operating system that helps solo developers and resource-constrained builders get the most out of free and low-cost AI tools. It works by routing development tasks to the right AI agent (Claude Code or Gemini CLI) based on task complexity, coordinated through a shared set of markdown documents and skill files.
+**Frugent** is a lightweight, multi-agent development operating system that helps solo developers and resource-constrained builders get the most out of free and low-cost AI tools. It works by routing development tasks to the right AI agent (Claude Code, Gemini CLI, or others) based on a **dynamic role mapping** defined by the user. Coordination is managed through a shared set of markdown documents and global skill files.
 
 The name comes from **frugal + agent** — the core philosophy is doing more with less, not doing less.
 
@@ -16,155 +16,104 @@ The name comes from **frugal + agent** — the core philosophy is doing more wit
 
 ## 2. Problem
 
-AI coding tools like Claude Code and Gemini CLI are powerful but expensive when used without discipline. Most developers:
+AI coding tools are powerful but expensive when used without discipline. Most developers:
 
-- Use one tool for everything, ignoring free-tier alternatives
-- Waste expensive quota on tasks that don't need it
-- Lose context between sessions, forcing agents to re-orient from scratch every time
-- Have no structured handoff between agents, causing incompatible outputs
-- Run out of quota mid-task with no recovery plan
+- Use one tool for everything, ignoring free-tier alternatives.
+- Waste expensive quota on tasks that don't need it.
+- Lose context between sessions, forcing agents to re-orient from scratch.
+- Have no structured handoff between agents, causing incompatible outputs.
+- Run out of quota mid-task with no recovery plan.
 
-Existing solutions are too automated, too token-heavy, and designed for single-tool workflows. There is no lightweight, multi-tool, cost-aware system built for solo developers on a budget.
+Existing solutions are too automated, too token-heavy, and designed for single-tool workflows. Frugent provides a lightweight, multi-tool, cost-aware system built for solo developers on a budget.
 
 ---
 
 ## 3. Target Users
 
-- Solo developers and indie hackers
-- Students and bootcamp graduates
-- Early-stage startup founders
-- Any developer wanting to reduce AI tool costs without sacrificing output quality
+- Solo developers and indie hackers.
+- Students and bootcamp graduates.
+- Any developer wanting to reduce AI tool costs without sacrificing quality.
 
-**Primary persona:** A developer with Claude Pro ($20/month) and Gemini CLI free tier who wants to build real projects without running out of quota mid-way.
+**Primary persona:** A developer with a paid "Pro" agent (e.g., Claude Code) and a free "Executor" agent (e.g., Gemini CLI) who wants to build real projects without exhausting paid quota.
 
 ---
 
 ## 4. Goals
 
-1. Maximize use of free AI tiers before touching paid quota
-2. Maintain shared context between agents across sessions with minimal token cost
-3. Provide clear handoff protocols so agents don't produce incompatible outputs
-4. Give developers visibility into what each agent is doing and what's been done
-5. Be simple enough to understand, modify, and own entirely
+1. **Maximize Free Tiers:** Use free AI tiers for standard tasks before touching paid quota.
+2. **Dynamic Roles:** Allow users to assign specific tools to roles (Planner vs. Executor) per project.
+3. **Shared Context:** Maintain context across sessions with minimal token cost via markdown docs.
+4. **Structured Handoff:** Ensure clear protocols so agents produce compatible outputs.
+5. **Simplicity:** Be simple enough to understand, modify, and own entirely.
 
 ---
 
 ## 5. Non-Goals (v1)
 
-- Dashboard or progress visualization UI
-- MCP (Model Context Protocol) integration
-- Automated agent spawning or orchestration scripts
-- Any paid tooling or SaaS layer
-- Support for tools beyond Claude Code and Gemini CLI (Codex support is v2)
-- User-facing CLI commands — the developer works entirely within agent terminals
+- Dashboard or progress visualization UI.
+- MCP (Model Context Protocol) integration.
+- Automated agent spawning or orchestration scripts.
+- Any paid tooling or SaaS layer.
 
 ---
 
-## 6. Core Workflow (v1)
+## 6. Core Workflow (v2.1)
 
-### Phase 0 — Init (Developer + Claude Code)
+### Phase 0 — Init (The "Handshake")
+The developer runs `/frugent-init` inside an agent terminal.
+- **Quick init:** Fast scan of project root and scaffolding of `docs/`.
+- **Deep init:** For large codebases. One agent (e.g., Gemini) performs a full scan to produce `codebase-analysis.md`, which the primary planner then reads to build the plan.
 
-The developer runs "init frugent" inside Claude Code. Three modes are available:
+### Phase 1 — Planning (The "Role Assignment")
+The **Planner** (typically the high-tier agent) reads the PRD/SRS and `codebase-analysis.md`, then produces:
+- `plan.md` — Phases, features, and tasks with complexity tags (`standard` / `complex`).
+- **Role Mapping:** A table defining which tool is assigned to which role for this project.
+- `contracts.md` — Agreed interfaces and component boundaries.
+- `briefing.md` — The session bootstrap file that tells the *next* agent exactly what to do.
 
-**Quick init** — for small projects or when you want to start immediately. Claude does a fast scan of project root, config files, and folder structure, then scaffolds docs and asks what to work on next.
+### Phase 2 — Execution (The "Workhorse")
+The developer assigns an **Executor** (typically a free-tier agent) to tasks. The agent:
+- Reads `briefing.md` and checks the **Role Mapping** to confirm its responsibilities.
+- Runs `python ~/.frugent/tracker.py status` to check its current quota.
+- Appends progress, blockers, and handoffs to a unified `log.md`.
 
-**Deep init** — for existing codebases that need full understanding. Claude scaffolds docs, then tells the developer to run Gemini CLI to analyze the entire codebase (free). Gemini writes `codebase-analysis.md`. Developer returns to Claude, who reads the analysis and produces the plan.
-
-**Skip init** — for projects that already have PRD/SRS. Just copies templates into `docs/`. No scanning.
-
-In all modes, Claude checks for existing PRD/SRS. If none found, it asks: "Want me to generate one from your code, or will you add your own?"
-
-### Phase 1 — Planning (Claude Code as Planner)
-Claude Code reads PRD/SRS (and `codebase-analysis.md` if deep init was used), then produces:
-- `plan.md` — phases, features, tasks broken down with complexity tags
-- `contracts.md` — agreed interfaces between components
-- `test-cases.md` — what QA will test per feature
-- `briefing.md` — session bootstrap for the executor agent
-
-For existing projects, prior work is captured as "Phase 0 (done)" and new work starts at Phase 1.
-
-### Phase 2 — Execution (Developer assigns, Agents execute)
-Developer tells Gemini CLI (or Claude Code for complex tasks) to start working. Each agent:
-- Reads `briefing.md` at session start
-- Runs `python ~/.frugent/tracker.py status` to check quota budget
-- Clarifies its task before executing
-- Appends entries to `log.md` after each task (progress, blockers, handoffs)
-- Raises blockers immediately in `log.md` if stuck
-
-### Phase 3 — QA (Developer + Agent)
-After a feature is complete, developer tests against `test-cases.md` or asks an agent to run tests. Results go to `qa-report.md`.
-
-### Phase 4 — Retrospective
-After each phase, developer writes a short retro entry in `log.md` capturing what worked, what didn't, and what to improve next phase.
+### Phase 3 — QA & Integration
+Features are tested against `test-cases.md`. If complex integration is needed, a high-tier agent is assigned as the **Integrator** to merge work and resolve conflicts.
 
 ---
 
-## 7. Cost Routing Rules
+## 7. Dynamic Cost Routing
 
-Every task is tagged by complexity: `standard` or `complex`.
+Frugent uses a **Role Mapping Table** located in `docs/briefing.md` (or `plan.md`). This allows the user to decide which tool is the "high-tier" vs "low-tier" agent.
 
-| Task type | Routed to | Examples |
-|---|---|---|
-| `standard` | Gemini CLI (free) | CRUD, UI components, boilerplate, repetitive logic, tests |
-| `complex` | Claude Code (paid) | Architecture, AI logic, cross-cutting integration, ambiguous requirements |
+### Default Role Mapping (Example)
+| Role | Recommended Tool | Tier | Responsibility |
+|---|---|---|---|
+| **Planner** | Claude Code | Paid | Architecture, Planning, Complex logic |
+| **Executor** | Gemini CLI | Free | Standard implementation, Boilerplate, Tests |
+| **QA** | Codex / Gemini | Free | Testing and reporting |
 
-**Key rules:**
-1. **Gemini first** — default all tasks to Gemini unless tagged complex
-2. **Claude for complexity** — architecture, AI logic, integration, and review
-3. **Escalate don't guess** — if Gemini encounters something architecturally significant, it stops and raises a blocker in `log.md` rather than deciding alone
-4. **Handoff before exhaustion** — any agent approaching quota limits writes a handoff entry in `log.md` before the session ends
-
-**Planning detail level:** Claude plans to the level of intent and contracts — function names, input/output types, business logic rules, libraries to use, and edge cases to handle. If a plan reads like pseudocode, it's too detailed. Gemini retains implementation ownership within the agreed contracts.
-
----
-
-## 7a. Usage Tracker
-
-Frugent includes a Python script at `~/.frugent/tracker.py` that monitors both Claude Code and Gemini CLI usage, warning before hitting quota limits.
-
-**This is not a user-facing CLI.** Agents invoke it themselves via shell command as instructed by their skill files. The developer can also run it manually if they want, but the primary workflow is agent-invoked.
-
-**Claude Code tracking:**
-Reads Claude's local JSONL logs at `~/.claude/projects/` to calculate active query-to-response intervals. Idle time is excluded. Warns at 4 hours of 5-hour window and 35 hours of 40-hour weekly cap.
-
-**Gemini CLI tracking (primary — automatic):**
-`setup.sh` configures Gemini CLI's built-in OpenTelemetry to write telemetry data to `~/.frugent/gemini-telemetry.jsonl`. The tracker reads this file to get per-model token counts, tracking `gemini-2.5-pro` and `gemini-2.5-flash` separately. Only Pro tokens count against the daily budget. No wrapper script needed — telemetry is built into Gemini CLI.
-
-**Gemini CLI tracking (fallback — manual):**
-If telemetry is unavailable, the developer can manually record usage via `tracker.py record-gemini '<json>'` using Gemini's `--output-format json` output. The GEMINI.md skill also instructs Gemini to report `/stats model` output in its log entries as a last resort.
-
-**Agent invocation:**
-Agents run `python ~/.frugent/tracker.py status` at session start and report the result. Skill files instruct agents to do this automatically.
-
-**Auto-reset:** Weekly counters reset automatically when a new week is detected. Daily Gemini counters reset on new day. No manual reset needed.
-
-**Graceful degradation:** If Claude's JSONL format changes or Gemini's telemetry format changes, the tracker reports "unable to read" rather than crashing or giving wrong numbers.
-
-**Data stored at:** `~/.frugent/usage.json` (aggregated) and `~/.frugent/gemini-telemetry.jsonl` (raw Gemini telemetry)
-
-**Limitation:** Claude active time is an approximation. Gemini Pro daily budget (~30,000 tokens) is an observed estimate, not an officially published limit.
+### Routing Rules:
+1. **Executor First:** Default all `standard` tasks to the free-tier Executor.
+2. **Escalate Don't Guess:** If an Executor encounters an architectural decision not in the plan, it must stop and raise a `[blocker]` for the Planner.
+3. **Intent vs. Implementation:** The Planner specifies *what* and *why* (contracts/logic). The Executor decides *how* (naming/structure). If a plan reads like pseudocode, it is too detailed.
 
 ---
 
-## 8. Success Criteria (v1)
+## 8. Usage Tracker
 
-- A developer can set up Frugent globally once and use it on any project
-- A full project can be planned, executed, and QA'd using the document system with no custom tooling
-- Gemini CLI free tier handles at least 60% of execution tasks
-- Claude Code quota is reserved for planning, complex logic, and integration
-- No agent ever starts a session without reading its briefing first
-- No agent goes silent when stuck — blockers are always raised in log.md
-- Usage tracker warns before hitting limits when invoked by agents
+Frugent includes `tracker.py` to monitor cross-session usage.
+- **Claude Code:** Tracks active query intervals from local JSONL logs.
+- **Gemini CLI:** Tracks tokens via OpenTelemetry telemetry (automatic).
+- **Codex:** Tracks usage via session logs (if available).
+
+Agents invoke `python ~/.frugent/tracker.py status` at the start of every session as part of their **Global Skill** instructions.
 
 ---
 
-## 9. Out of Scope but Noted for v2
+## 9. Success Criteria
 
-- Codex agent support and QA skill file
-- `dashboard.md` — single status view across all agents
-- Automated briefing regeneration after log.md updates
-- MCP-based agent-to-agent communication
-- Shell scripts for project scaffolding
-- Conflict resolution automation
-- Codex usage tracking
-- User-facing CLI with subcommands
+- Project initialized and scaffolded in under 2 minutes via `/frugent-init`.
+- Free-tier agents handle at least 60% of execution tasks.
+- Shared context (Briefing/Log) prevents "re-orientation" token waste.
+- Usage tracker warns user before hitting 80% of any daily/weekly quota.

@@ -1,0 +1,35 @@
+description = "Execute tasks with guardrails and self-check"
+prompt = """
+# Frugent Execute
+
+You are executing tasks using the Frugent v2.2 "Elite Prompting" workflow.
+
+## Step 1: Quota & Context Check
+Run `python ~/.frugent/tracker.py status`. Read `docs/briefing.md`, `docs/plan.md`, and `docs/log.md`.
+
+## Step 2: Context Grounding
+**MANDATORY:** Always start your analysis with the phrase: "Based on the information in the provided documentation..." to anchor your reasoning to the project state.
+
+## Step 3: Chain-of-Thought (CoT)
+Before performing any action or writing code, provide a 1-2 sentence technical rationale inside a `<thinking>` block.
+
+## Step 4: Execute
+Implement the task as defined in the XML `<task>` block in `plan.md`.
+
+## Step 5: Mandatory Self-Check (Verification)
+Before marking as `done`, you must verify the `<verify>` criteria from the task contract.
+
+## Step 6: After Task Completion
+1. Mark the task as `done` in `docs/plan.md`.
+2. Append a `[progress]` entry to `docs/log.md`.
+3. Update `docs/briefing.md` for the next role/session.
+
+## Step 7: Deviation Rules (Critical Checklist)
+Enforce these rules in order during all steps:
+1. **Auto-Fix Bugs:** If it's a small implementation bug in YOUR code, fix it immediately and try again.
+2. **Stop for Architecture:** If the fix requires an architectural change or a new library not in `plan.md`, raise a `[blocker]` and stop.
+3. **3-Attempt Limit:** If a bug or task fails 3 times, raise a `[blocker]` with a detailed post-mortem.
+4. **No Hallucination:** If a library or file is missing, do not assume it's there. Verify first.
+5. **No Stubs:** Implementation must be complete. No TODOs.
+6. **No Scope Creep:** Only work on the assigned task in `briefing.md`.
+"""

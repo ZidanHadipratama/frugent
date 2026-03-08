@@ -7,14 +7,8 @@
 - **Current task:** <!-- what to work on now -->
 
 ## Assignment
-- **Role:** <!-- Planner / Executor / Integrator -->
-- **Tool:** <!-- Claude / Gemini / Codex -->
+- **Agent:** <!-- Claude / Gemini -->
 - **Complexity:** <!-- standard / complex -->
-
-## Context Check
-<!-- Rule: Read plan.md and log.md before starting to ensure context is fully understood. -->
-- **Plan:** [Link to plan.md](./plan.md)
-- **Unified Log:** [Link to log.md](./log.md)
 
 ## Known Blockers
 <!-- From log.md [blocker] entries, or "None" -->

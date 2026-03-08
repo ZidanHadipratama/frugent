@@ -94,12 +94,20 @@ mkdir -p "$CLAUDE_DIR/commands"
 mkdir -p "$GEMINI_DIR/commands"
 mkdir -p "$CODEX_DIR/commands"
 
+# Claude and Codex: Markdown commands
 for cmd_file in "$SCRIPT_DIR"/commands/frugent-*.md; do
     if [ -f "$cmd_file" ]; then
         cmd_name=$(basename "$cmd_file")
         safe_copy "$cmd_file" "$CLAUDE_DIR/commands/$cmd_name" "claude: /$cmd_name"
-        safe_copy "$cmd_file" "$GEMINI_DIR/commands/$cmd_name" "gemini: /$cmd_name"
         safe_copy "$cmd_file" "$CODEX_DIR/commands/$cmd_name" "codex: /$cmd_name"
+    fi
+done
+
+# Gemini: TOML commands (enables auto-complete)
+for cmd_file in "$SCRIPT_DIR"/commands/gemini/frugent-*.toml; do
+    if [ -f "$cmd_file" ]; then
+        cmd_name=$(basename "$cmd_file")
+        safe_copy "$cmd_file" "$GEMINI_DIR/commands/$cmd_name" "gemini: /$cmd_name"
     fi
 done
 

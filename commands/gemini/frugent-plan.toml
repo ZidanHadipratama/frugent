@@ -1,17 +1,21 @@
+description = "Create execution plan (capped 3-5 tasks per phase)"
+prompt = """
 # Frugent Plan
 
 You are creating the execution plan using the Frugent v2.2 "Elite Prompting" workflow.
 
 ## Step 1: Quota & Context Check
-Run `python ~/.frugent/tracker.py status`. Read `docs/briefing.md`, `docs/log.md`, and `docs/codebase-analysis.md`.
-**MANDATORY:** Always start your analysis with: "Based on the information in the provided documentation..."
+Run `python ~/.frugent/tracker.py status`. Read `docs/briefing.md` and `docs/log.md`.
 
-## Step 2: Capped Phase Planning (CRITICAL)
+## Step 2: Context Grounding
+**MANDATORY:** Always start your analysis with the phrase: "Based on the information in the provided documentation..." to anchor your reasoning to the project state.
+
+## Step 3: Capped Phase Planning (CRITICAL)
 Break the project into phases. **Each phase must have only 3-5 tasks.**
-- **Rationale:** Smaller phases protect the context window and ensure the Executor stays focused.
+- **Rationale:** Smaller phases protect the context window and ensure focus.
 - **Complexity:** Tag each task as `standard` (boilerplate/CRUD) or `complex` (architecture/AI logic).
 
-## Step 3: XML Task Contracts
+## Step 4: XML Task Contracts
 In `docs/plan.md`, define each task using an XML-like block to remove ambiguity. **DO NOT** use vague prose.
 ```xml
 <task id="[N]">
@@ -21,20 +25,15 @@ In `docs/plan.md`, define each task using an XML-like block to remove ambiguity.
 </task>
 ```
 
-## Step 4: Role Mapping
-Map Roles (Planner, Executor, Integrator, QA) to specific Tools (e.g., Claude, Gemini, Codex) and their Cost Tier (Paid/Free).
-
 ## Step 5: Interface Contracts
 Fill `docs/contracts.md` with interface definitions. Ensure the **Planner** specifies the "What" and "Why" while leaving the "How" to the **Executor**.
 
-## Step 6: Goal-Backward Verification
-For every feature, ensure `docs/test-cases.md` are defined *before* execution starts. Verification should be goal-driven, not task-driven.
-
-## Step 7: Log and Next Steps
+## Step 6: Log and Next Steps
 Append `[progress]` to `docs/log.md`.
 Tell the user: "Plan created with XML contracts. 3-5 tasks per phase for focus. Run **/frugent-execute** to start."
 
-## Critical Checklist (Enforce these last)
-1. **Capped Phase:** 3-5 tasks maximum per phase.
+## Step 7: Critical Checklist (Enforce these last)
+1. **Capped Phase:** 3-5 tasks maximum.
 2. **XML Format:** No vague prose in plan.md.
-3. **Intent vs Implementation:** Do NOT specify variable names or internal structure for Executors.
+3. **Intent vs Implementation:** Do NOT specify variable names or internal file structure for Executors.
+"""

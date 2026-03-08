@@ -1,3 +1,5 @@
+description = "Structured state capture for session end"
+prompt = """
 # Frugent Handoff
 
 Write a structured handoff document for the next session or agent.
@@ -28,3 +30,4 @@ Update `docs/briefing.md` with:
 
 ## Step 4: Final Confirmation
 Tell the user: "Session handed off with structured state. Safe to close. Next agent should read briefing.md to resume."
+"""

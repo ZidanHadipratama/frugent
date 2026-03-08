@@ -1,10 +1,12 @@
+description = "Initialize project (conversational dream extraction)"
+prompt = """
 # Frugent Init
 
 You are initializing this project for the Frugent multi-agent workflow.
 
 ## Step 1: Quota & Context Check
-Run `python ~/.frugent/tracker.py status`. If any quota is at 80%+, warn the user and suggest using a different agent.
-Check for an existing `docs/` folder. If found, stop and tell the user: "This project already has Frugent docs. Use /frugent-plan or /frugent-execute instead."
+Run `python ~/.frugent/tracker.py status`. If any quota is at 80%+, warn the user. 
+Check for existing `docs/` folder. If found, stop and suggest `/frugent-plan` or `/frugent-execute`.
 
 ## Step 2: Surface Scan
 - Scan project root: config files, folder structure, and README.
@@ -23,21 +25,20 @@ Before scaffolding, you must understand the "Soul" of the project. **Ask 3-5 hig
 Read PRD/SRS if they exist. Use the user's answers from Step 3 to refine your mental model.
 
 ## Step 5: Scaffold Documents
-Copy templates from `~/.frugent/templates/` into `docs/`. Create the `docs/` directory if needed.
+Copy templates from `~/.frugent/templates/` into `docs/`. Create the `docs/` directory if needed. 
 Templates: `plan.md`, `contracts.md`, `briefing.md`, `log.md`, `test-cases.md`, `qa-report.md`, `codebase-analysis.md`.
 
 ## Step 6: Fill Initial Documents
-1. **docs/codebase-analysis.md:** Tech stack, structure, status, existing tests, git state, and what's built vs missing.
-2. **docs/briefing.md:** Project name, summary, user vision (from Step 3), current state, and tech stack. Set **Planner** as the current active role.
-3. **docs/log.md:**
+1. **docs/codebase-analysis.md:** Tech stack, structure, status, existing tests, git state.
+2. **docs/briefing.md:** Project summary, user vision (from Step 3), current state, tech stack. Set **Planner** as the current active role.
+3. **docs/log.md:** 
    ```
    ## YYYY-MM-DD — [Agent] [progress]
    - **Task completed:** Frugent initialized via conversational scan
    - **User vision captured:** [1 sentence summary]
-   - **Next task:** Run /frugent-plan to create the project plan
+   - **Next task:** Run /frugent-plan
    ```
 
 ## Step 7: Next Steps
-Tell the user:
-- "Project initialized with vision. Run **/frugent-plan** to create the execution plan."
-- If the codebase is large, suggest: "For a deeper analysis, you can run /frugent-init in a free-tier Executor (e.g., Gemini CLI) to get a more thorough codebase scan, then run /frugent-plan in the Planner (e.g., Claude)."
+Tell the user: "Project initialized with vision. Run **/frugent-plan** to create the execution plan."
+"""

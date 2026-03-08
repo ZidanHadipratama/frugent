@@ -1,41 +1,33 @@
 # Frugent — Gemini CLI Rules
 
-You are part of the Frugent multi-agent system. You are a **free-tier executor**. These rules apply every session.
+You are part of the Frugent multi-agent system. These rules apply every session.
 
 ## Frugent Commands
-
-- **/frugent-init** — Initialize frugent for this project
-- **/frugent-plan** — Create or update the execution plan
-- **/frugent-execute** — Execute tasks from the plan
-- **/frugent-handoff** — Write handoff document for session end
+- **/frugent-init** — Initialize project (conversational dream extraction)
+- **/frugent-plan** — Create/update execution plan (capped 3-5 tasks per phase)
+- **/frugent-execute** — Execute tasks with guardrails and self-check
+- **/frugent-handoff** — Structured state capture for session end
 - **/frugent-status** — Check quota and project state
 
+## Operational Guardrails
+- **No Stubs:** Never write `// implementation here` or "TODO". All code must be functional.
+- **Anti-Paralysis:** If you read >5 files without an action, stop and explain why.
+- **No Scope Creep:** Do exactly what is in the task. Log ideas as `[suggestion]` instead.
+- **3-Attempt Limit:** If a bug or implementation fails 3 times, stop and raise a `[blocker]`.
+- **Hallucination Check:** Verify file/library existence with `ls` or `grep` before using.
+
 ## During Work
-
-- Follow contracts in `docs/contracts.md` exactly. Do not deviate from agreed interfaces.
-- You own implementation decisions within contracts: variable naming, control flow, file structure, error handling, how to call libraries.
-- After completing a task, append a `[progress]` entry to `docs/log.md`:
-  ```
-  ## YYYY-MM-DD — Gemini [progress]
-  - **Task completed:** what you did
-  - **Files modified:** list of files
-  - **Next task:** what comes next
-  ```
-
-## Escalation Rules
-
-- If a task requires an architectural decision not covered by contracts → **stop and raise a blocker**. Do not decide alone.
-- If a task is more complex than expected → raise a `[blocker]` suggesting reassignment to Claude.
-- If you need to add a new library not listed in the plan → raise a `[blocker]` explaining why.
-- If stuck, immediately append a `[blocker]` entry to `docs/log.md`. Do NOT hallucinate a solution.
-- If you think of something out of scope, append a `[suggestion]` entry to `docs/log.md`. Do NOT implement it.
+- **Identity Check:** Identify your Role (Planner/Executor/Integrator) and Tier from `docs/plan.md` and `docs/briefing.md`.
+- **Contracts:** Adhere strictly to `docs/contracts.md`.
+- **Unified Log:** After every task, append a `[progress]` entry to `docs/log.md`.
+- **Chain-of-Thought (MANDATORY):** Before performing any action or writing code, provide a 1-2 sentence technical rationale inside a `<thinking>` block.
+- **Grounding:** Always start your analysis with "Based on the information in the provided documentation...".
 
 ## Quota Awareness
+- **Per-session:** Run `/stats` proactively. If `gemini-2.5-pro` > 25k tokens, stop.
+- **Cross-session:** Run `python ~/.frugent/tracker.py status` at session start.
 
-**Per-session (native):** After completing every task and before starting the next:
-1. Run `/stats` to check per-model token usage
-2. If `gemini-2.5-pro` tokens > 25,000 → run /frugent-handoff, switch to Flash-only simple work, or stop
-3. If session feels heavy (many files read, long conversation) → run `/stats` proactively
-
-**Cross-session:** Run `python ~/.frugent/tracker.py status` to check accumulated daily usage.
-- If approaching Pro token limits → finish current task, run /frugent-handoff, and stop
+## Critical Checklist (Enforce these last)
+1. **No Stubs:** Implementation must be complete.
+2. **CoT First:** Thinking block before action.
+3. **Verify:** Use the `<verify>` criteria from the task contract before finishing.
