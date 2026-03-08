@@ -41,6 +41,7 @@ Append blocker entries to `docs/log.md`:
 - If `tracker.py` warns you are approaching Pro token limits, finish your current task and write a `[handoff]` entry in `docs/log.md`.
 - A `[handoff]` entry must include: session summary, what's completed, what's in progress, what's remaining, files modified, and resume instructions.
 - Do not start a new task if budget is low. Wrap up and hand off.
+- At session end, if telemetry tracking is not working, run `/stats model` and report the token usage in your `[progress]` or `[handoff]` entry as a fallback.
 
 ## Codebase Analysis Task
 

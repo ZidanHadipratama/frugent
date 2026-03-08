@@ -127,17 +127,20 @@ Frugent includes a Python script at `~/.frugent/tracker.py` that monitors both C
 **Claude Code tracking:**
 Reads Claude's local JSONL logs at `~/.claude/projects/` to calculate active query-to-response intervals. Idle time is excluded. Warns at 4 hours of 5-hour window and 35 hours of 40-hour weekly cap.
 
-**Gemini CLI tracking:**
-Parses `--output-format json` output from Gemini CLI to get per-model token counts, broken down separately for `gemini-2.5-pro` and `gemini-2.5-flash`. Only Pro tokens are tracked against the daily budget.
+**Gemini CLI tracking (primary — automatic):**
+`setup.sh` configures Gemini CLI's built-in OpenTelemetry to write telemetry data to `~/.frugent/gemini-telemetry.jsonl`. The tracker reads this file to get per-model token counts, tracking `gemini-2.5-pro` and `gemini-2.5-flash` separately. Only Pro tokens count against the daily budget. No wrapper script needed — telemetry is built into Gemini CLI.
+
+**Gemini CLI tracking (fallback — manual):**
+If telemetry is unavailable, the developer can manually record usage via `tracker.py record-gemini '<json>'` using Gemini's `--output-format json` output. The GEMINI.md skill also instructs Gemini to report `/stats model` output in its log entries as a last resort.
 
 **Agent invocation:**
 Agents run `python ~/.frugent/tracker.py status` at session start and report the result. Skill files instruct agents to do this automatically.
 
-**Auto-reset:** Weekly counters reset automatically when a new week is detected. No manual reset needed.
+**Auto-reset:** Weekly counters reset automatically when a new week is detected. Daily Gemini counters reset on new day. No manual reset needed.
 
-**Graceful degradation:** If Claude's JSONL format changes or Gemini's output format changes, the tracker reports "unable to read" rather than crashing or giving wrong numbers.
+**Graceful degradation:** If Claude's JSONL format changes or Gemini's telemetry format changes, the tracker reports "unable to read" rather than crashing or giving wrong numbers.
 
-**Data stored at:** `~/.frugent/usage.json`
+**Data stored at:** `~/.frugent/usage.json` (aggregated) and `~/.frugent/gemini-telemetry.jsonl` (raw Gemini telemetry)
 
 **Limitation:** Claude active time is an approximation. Gemini Pro daily budget (~30,000 tokens) is an observed estimate, not an officially published limit.
 

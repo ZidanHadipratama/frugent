@@ -11,6 +11,7 @@ from pathlib import Path
 FRUGENT_DIR = Path.home() / ".frugent"
 USAGE_FILE = FRUGENT_DIR / "usage.json"
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
+GEMINI_TELEMETRY_FILE = FRUGENT_DIR / "gemini-telemetry.jsonl"
 
 # Claude thresholds
 CLAUDE_WINDOW_WARN_MINS = 240      # warn at 4h of 5h window
@@ -256,6 +257,170 @@ def record_gemini_usage(data, pro_tokens, flash_tokens):
     save_usage(data)
 
 
+def scan_gemini_telemetry():
+    """Read Gemini telemetry log and extract today's token usage.
+
+    The telemetry file is written by Gemini CLI's OpenTelemetry exporter.
+    Format may be JSONL with OpenTelemetry log/metric records, or a custom
+    format. We try multiple parsing strategies and degrade gracefully.
+    """
+    if not GEMINI_TELEMETRY_FILE.exists():
+        return None, "no-file"
+
+    today = get_today()
+    pro_tokens = 0
+    flash_tokens = 0
+    prompts = 0
+    parsed_any = False
+
+    try:
+        with open(GEMINI_TELEMETRY_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                tokens = extract_gemini_tokens(entry, today)
+                if tokens:
+                    parsed_any = True
+                    pro_tokens += tokens.get("pro", 0)
+                    flash_tokens += tokens.get("flash", 0)
+                    prompts += tokens.get("prompts", 0)
+    except (IOError, PermissionError) as e:
+        return None, f"Unable to read telemetry: {e}"
+
+    if not parsed_any:
+        return None, "no-data"
+
+    return {
+        "pro_tokens": pro_tokens,
+        "flash_tokens": flash_tokens,
+        "prompts": prompts
+    }, None
+
+
+def extract_gemini_tokens(entry, today):
+    """Extract token counts from a telemetry entry.
+
+    Handles multiple possible formats:
+    1. OpenTelemetry log record with attributes
+    2. OpenTelemetry metric record
+    3. Gemini CLI custom format
+    """
+    # Check if this entry is from today
+    entry_date = None
+    for key in ("timestamp", "timeUnixNano", "time", "ts", "observedTimeUnixNano"):
+        val = entry.get(key)
+        if val is None:
+            # Check nested: body.timestamp, attributes, etc.
+            continue
+        if isinstance(val, (int, float)):
+            try:
+                if val > 1e18:  # nanoseconds
+                    dt = datetime.fromtimestamp(val / 1e9)
+                elif val > 1e12:  # milliseconds
+                    dt = datetime.fromtimestamp(val / 1000)
+                else:
+                    dt = datetime.fromtimestamp(val)
+                entry_date = dt.strftime("%Y-%m-%d")
+            except (ValueError, OSError):
+                continue
+        elif isinstance(val, str):
+            try:
+                dt = datetime.fromisoformat(val.replace("Z", "+00:00").replace("+00:00", ""))
+                entry_date = dt.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        if entry_date:
+            break
+
+    if entry_date and entry_date != today:
+        return None
+
+    pro = 0
+    flash = 0
+    found = False
+
+    # Strategy 1: Look for token attributes in OTel log records
+    # OTel logs have: body, attributes, severityText, etc.
+    attrs = entry.get("attributes", {})
+    if isinstance(attrs, list):
+        # OTel format: attributes is a list of {key, value} pairs
+        attrs = {a.get("key"): a.get("value", {}).get("intValue", a.get("value", {}).get("stringValue", ""))
+                 for a in attrs if isinstance(a, dict)}
+
+    for key, val in attrs.items() if isinstance(attrs, dict) else []:
+        key_lower = key.lower()
+        if "token" in key_lower:
+            found = True
+            try:
+                token_val = int(val) if not isinstance(val, int) else val
+            except (ValueError, TypeError):
+                continue
+            # Determine if pro or flash based on model info in the entry
+            model = _find_model_name(entry, attrs)
+            if "pro" in model:
+                pro += token_val
+            else:
+                flash += token_val
+
+    # Strategy 2: Look for nested stats (like headless JSON output)
+    stats = entry.get("stats", {})
+    if isinstance(stats, dict):
+        models = stats.get("models", {})
+        for model_name, model_data in models.items():
+            total = 0
+            if isinstance(model_data, dict):
+                tokens_data = model_data.get("tokens", {})
+                total = tokens_data.get("total", 0) if isinstance(tokens_data, dict) else 0
+            if "pro" in model_name.lower():
+                pro += total
+                found = True
+            elif "flash" in model_name.lower():
+                flash += total
+                found = True
+
+    # Strategy 3: Look for metric data points
+    if entry.get("name", "").startswith("gemini_cli.token"):
+        data_points = entry.get("dataPoints", entry.get("data_points", []))
+        for dp in data_points if isinstance(data_points, list) else []:
+            val = dp.get("asInt", dp.get("value", 0))
+            dp_attrs = dp.get("attributes", {})
+            if isinstance(dp_attrs, list):
+                dp_attrs = {a.get("key"): a.get("value", {}).get("stringValue", "")
+                            for a in dp_attrs if isinstance(a, dict)}
+            model = dp_attrs.get("model", dp_attrs.get("gen_ai.request.model", ""))
+            if "pro" in model.lower():
+                pro += int(val)
+                found = True
+            else:
+                flash += int(val)
+                found = True
+
+    if not found:
+        return None
+
+    return {"pro": pro, "flash": flash, "prompts": 1 if found else 0}
+
+
+def _find_model_name(entry, attrs):
+    """Try to find model name from entry or attributes."""
+    for key in ("model", "gen_ai.request.model", "modelId"):
+        if key in attrs:
+            return str(attrs[key]).lower()
+    # Check body or nested fields
+    body = entry.get("body", {})
+    if isinstance(body, dict):
+        for key in ("model", "modelId"):
+            if key in body:
+                return str(body[key]).lower()
+    return ""
+
+
 # --- Display ---
 
 def format_time(mins):
@@ -325,8 +490,6 @@ def display_claude_status(data, show_week=False):
 
 def calculate_recent_window(sessions):
     """Estimate active time in the most recent ~5 hour window."""
-    # Sum up the most recent sessions up to roughly the last 5 hours of wall time
-    # This is an approximation — we use the most recent day's sessions
     today = get_today()
     recent_mins = 0
     for session in sessions:
@@ -338,10 +501,45 @@ def calculate_recent_window(sessions):
 def display_gemini_status(data):
     print("GEMINI CLI")
 
+    # Try reading telemetry log first (automatic)
+    telemetry_data, telemetry_error = scan_gemini_telemetry()
+
+    if telemetry_data:
+        # Update stored data with fresh telemetry
+        today = get_today()
+        daily_totals = data.setdefault("gemini", {}).setdefault("daily_totals", [])
+
+        # Replace today's entry with telemetry data
+        found = False
+        for entry in daily_totals:
+            if entry.get("date") == today:
+                entry["pro_tokens"] = telemetry_data["pro_tokens"]
+                entry["flash_tokens"] = telemetry_data["flash_tokens"]
+                entry["prompts"] = telemetry_data["prompts"]
+                found = True
+                break
+        if not found:
+            daily_totals.append({
+                "date": today,
+                "pro_tokens": telemetry_data["pro_tokens"],
+                "flash_tokens": telemetry_data["flash_tokens"],
+                "prompts": telemetry_data["prompts"]
+            })
+        save_usage(data)
+
+    # Display from stored data (whether from telemetry or manual record)
     gemini_today = get_gemini_today(data)
     pro_tokens = gemini_today.get("pro_tokens", 0)
     flash_tokens = gemini_today.get("flash_tokens", 0)
     pro_pct = (pro_tokens / GEMINI_PRO_DAILY_BUDGET) * 100 if GEMINI_PRO_DAILY_BUDGET > 0 else 0
+
+    # Source indicator
+    if telemetry_data:
+        source = "telemetry"
+    elif pro_tokens > 0 or flash_tokens > 0:
+        source = "manual"
+    else:
+        source = None
 
     if pro_tokens >= GEMINI_PRO_WARN_TOKENS:
         print(f"  Pro tokens today: {pro_tokens:,} of ~{GEMINI_PRO_DAILY_BUDGET:,} ({pro_pct:.0f}%) — prepare handoff soon")
@@ -350,8 +548,16 @@ def display_gemini_status(data):
 
     print(f"  Flash tokens: {flash_tokens:,} (no limit concern)")
 
+    if source:
+        print(f"  Source: {source}")
+    elif telemetry_error == "no-file":
+        print("  Source: no telemetry file found — using manual records only")
+        print("  Tip: run setup.sh to enable automatic Gemini tracking")
+    elif telemetry_error == "no-data":
+        print("  Source: telemetry file empty — no Gemini usage recorded today")
 
-# --- Gemini JSON Parsing ---
+
+# --- Gemini JSON Parsing (manual fallback) ---
 
 def parse_gemini_json(json_str):
     """Parse Gemini CLI JSON output and record token usage."""
@@ -396,7 +602,7 @@ def main():
             display_status()
 
     elif args[0] == "record-gemini":
-        # Usage: tracker.py record-gemini '{"stats": ...}'
+        # Manual fallback: tracker.py record-gemini '{"stats": ...}'
         if len(args) < 2:
             print("Usage: tracker.py record-gemini '<json>'")
             sys.exit(1)
@@ -410,8 +616,12 @@ def main():
         print("  status --claude     Claude Code usage only")
         print("  status --gemini     Gemini CLI usage only")
         print("  status --week       Full weekly breakdown")
-        print("  record-gemini JSON  Record Gemini CLI token usage from JSON output")
+        print("  record-gemini JSON  Record Gemini token usage manually (fallback)")
         print("  help                Show this help")
+        print()
+        print("Gemini tracking:")
+        print("  Primary: reads ~/.frugent/gemini-telemetry.jsonl (auto, via OTel)")
+        print("  Fallback: record-gemini command (manual)")
 
     else:
         print(f"Unknown command: {args[0]}")

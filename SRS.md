@@ -287,9 +287,27 @@ Weekly total = sum of active_time across all sessions this week
 
 ### 9.3 Gemini CLI Tracking
 
-**Data source:** Gemini CLI `--output-format json` flag
+**Primary data source (automatic):** `~/.frugent/gemini-telemetry.jsonl`
 
-The tracker parses Gemini CLI JSON output to get per-model token counts, tracking `gemini-2.5-pro` and `gemini-2.5-flash` separately. Only Pro tokens count against the daily budget.
+`setup.sh` configures Gemini CLI's built-in OpenTelemetry exporter to write telemetry data (including per-model token counts) to a local JSONL file. The tracker reads this file automatically — no wrapper script or manual recording needed.
+
+**Configuration added to `~/.gemini/settings.json`:**
+```json
+{
+  "telemetry": {
+    "enabled": true,
+    "target": "local",
+    "outfile": "~/.frugent/gemini-telemetry.jsonl",
+    "logPrompts": false
+  }
+}
+```
+
+**Fallback data source (manual):** `tracker.py record-gemini '<json>'`
+
+If telemetry is unavailable (e.g. user disabled it, format changed), the developer can manually record usage by passing Gemini's `--output-format json` output to the tracker. The GEMINI.md skill also instructs Gemini to report `/stats model` output in log.md entries as a last resort.
+
+**Token tracking:** Pro and Flash tokens are tracked separately. Only Pro tokens count against the daily budget.
 
 **Thresholds:**
 - Daily Pro tokens: warn at ~25,000 tokens (~80% of observed daily budget)
@@ -345,6 +363,7 @@ CLAUDE CODE
 GEMINI CLI
   Pro tokens today: 18,420 of ~30,000 (61%) — OK
   Flash tokens: 94,200 (no limit concern)
+  Source: telemetry
 ```
 
 ### 9.7 Auto-Reset
@@ -365,7 +384,9 @@ Same for Gemini if JSON output format changes. The tracker never crashes or give
 ### 9.9 Constraints
 
 - Reads Claude JSONL files as read-only — never modifies Claude's logs
-- Gemini tracking requires `--output-format json` flag — set in GEMINI.md skill
+- Gemini telemetry requires `setup.sh` to configure `~/.gemini/settings.json` — done automatically during install
+- Gemini telemetry sets `logPrompts: false` to avoid logging sensitive prompt content
+- If telemetry is disabled by user, falls back to manual `record-gemini` command
 - Claude active time is an approximation
 - Gemini Pro daily budget (~30,000 tokens) is an observed estimate
 - Requires Python 3.6+ standard library only — no pip installs
@@ -378,12 +399,14 @@ Same for Gemini if JSON output format changes. The tracker never crashes or give
 
 ```
 ~/.frugent/
-├── tracker.py           ← Usage tracker script
-├── templates/           ← Document templates (6 files)
-└── usage.json           ← Created on first run
+├── tracker.py               ← Usage tracker script
+├── templates/               ← Document templates (7 files)
+├── usage.json               ← Created on first run
+└── gemini-telemetry.jsonl   ← Written by Gemini CLI (auto)
 
-~/.claude/CLAUDE.md      ← Planner skill file
-~/.gemini/GEMINI.md      ← Executor skill file
+~/.claude/CLAUDE.md          ← Planner skill file
+~/.gemini/GEMINI.md          ← Executor skill file
+~/.gemini/settings.json      ← Updated with telemetry config
 ```
 
 ### 10.2 How to Install
@@ -392,6 +415,7 @@ A single `setup.sh` script that:
 1. Creates `~/.frugent/` and copies `tracker.py` and `templates/`
 2. Copies `CLAUDE.md` to `~/.claude/` (creates dir if needed)
 3. Copies `GEMINI.md` to `~/.gemini/` (creates dir if needed)
+4. Configures Gemini CLI telemetry in `~/.gemini/settings.json` (merges with existing settings, backs up if needed)
 
 ```bash
 git clone <repo> /tmp/frugent-install

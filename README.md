@@ -90,7 +90,13 @@ CLAUDE CODE
 GEMINI CLI
   Pro tokens today: 12,000 of ~30,000 (40%) — OK
   Flash tokens: 45,000 (no limit concern)
+  Source: telemetry
 ```
+
+**How tracking works:**
+- **Claude:** Reads Claude Code's local JSONL logs (already written by Claude) to calculate active time
+- **Gemini:** `setup.sh` configures Gemini CLI's built-in OpenTelemetry to write token usage to `~/.frugent/gemini-telemetry.jsonl` — fully automatic, no wrapper needed
+- **Fallback:** If telemetry is unavailable, you can manually record usage with `tracker.py record-gemini '<json>'`
 
 When limits approach, agents write a `[handoff]` entry in `log.md` so the next session can resume without losing progress.
 

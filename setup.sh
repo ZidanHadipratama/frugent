@@ -81,6 +81,57 @@ mkdir -p "$GEMINI_DIR"
 safe_copy "$SCRIPT_DIR/skills/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md" "CLAUDE.md skill"
 safe_copy "$SCRIPT_DIR/skills/GEMINI.md" "$GEMINI_DIR/GEMINI.md" "GEMINI.md skill"
 
+# --- Configure Gemini telemetry ---
+GEMINI_SETTINGS="$GEMINI_DIR/settings.json"
+TELEMETRY_FILE="$FRUGENT_DIR/gemini-telemetry.jsonl"
+
+if [ -f "$GEMINI_SETTINGS" ]; then
+    # Check if telemetry is already configured
+    if python3 -c "
+import json, sys
+with open('$GEMINI_SETTINGS') as f:
+    s = json.load(f)
+t = s.get('telemetry', {})
+if t.get('enabled') and t.get('outfile') == '$TELEMETRY_FILE':
+    sys.exit(0)
+sys.exit(1)
+" 2>/dev/null; then
+        info "Gemini telemetry already configured"
+    else
+        # Merge telemetry config into existing settings
+        python3 -c "
+import json
+with open('$GEMINI_SETTINGS') as f:
+    s = json.load(f)
+s['telemetry'] = {
+    'enabled': True,
+    'target': 'local',
+    'outfile': '$TELEMETRY_FILE',
+    'logPrompts': False
+}
+with open('$GEMINI_SETTINGS', 'w') as f:
+    json.dump(s, f, indent=2)
+"
+        info "Gemini telemetry enabled → $TELEMETRY_FILE"
+    fi
+else
+    # Create settings.json with telemetry config
+    python3 -c "
+import json
+s = {
+    'telemetry': {
+        'enabled': True,
+        'target': 'local',
+        'outfile': '$TELEMETRY_FILE',
+        'logPrompts': False
+    }
+}
+with open('$GEMINI_SETTINGS', 'w') as f:
+    json.dump(s, f, indent=2)
+"
+    info "Gemini settings created with telemetry → $TELEMETRY_FILE"
+fi
+
 # --- Done ---
 echo ""
 echo "  Setup complete!"
